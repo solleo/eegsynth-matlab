@@ -22,13 +22,25 @@
  * $Id: midiIn.c 10331 2015-04-12 13:49:08Z roboos $
  **********************************************************************/
 
-#define char16_t uint16_t
+/* these assist in the platform and compiler specific compilation */
+#include <platform.h>
+#include <compiler.h>
 
+#if defined(PLATFORM_WINDOWS)
+/* only needed on Windows */
+#include <windows.h>
+#define usleep(x)       (Sleep((x)/1000))
+#endif
+
+#if defined(PLATFORM_OSX)
+/* only needed on OS X */
 #include <unistd.h>
-#include <pthread.h>
+#define char16_t uint16_t
+#endif
+
+#include <mex.h>
 #include <portmidi.h>
 #include <porttime.h>
-#include <mex.h>
 
 #define FREE(x) {if (x) {free(x); x=NULL;}}
 #define WRAP(x,y) ((x) - ((int)((float)(x)/(y)))*(y))
@@ -73,193 +85,198 @@ unsigned int numReceived = 0;
 int32_t *channel = NULL, *note = NULL, *velocity = NULL, *timestamp = NULL;
 
 char locked = 0;
-#define MUTEX_LOCK     {while(locked) {usleep(100);} locked=1;}
+#define MUTEX_LOCK     {while (locked) {usleep(100);} locked=1;}
 #define MUTEX_UNLOCK   {locked=0;}
 #define MUTEX_ISLOCKED (locked)
-
-pthread_mutex_t lock;
 
 void reportPmError(PmError err);
 void reportPtError(PtError err);
 
 void receive_poll(PtTimestamp ts, void *userData)
 {
-		int count, command;
-		PmEvent event;
-
-		if (inStream==NULL)
-				return;
-
-		if (Pm_Poll(inStream)!=TRUE)
-				return;
-
-		while ((count = Pm_Read(inStream, &event, 1))) {
-				if (count == 1) {
-
-						/* there seems to be a constant stream of MIDI events, not all of which are interesting */
-						/* the status has the command in the highest 4 bits and the channel in the lowest 4 bits */
-						command = Pm_MessageStatus(event.message) & MIDI_CODE_MASK;
-						if ((command == MIDI_ON_NOTE)         ||
-										(command == MIDI_OFF_NOTE )   ||
-										(command == MIDI_CH_PROGRAM ) ||
-										(command == MIDI_CTRL)        ||
-										(command == MIDI_POLY_TOUCH ) ||
-										(command == MIDI_TOUCH )      ||
-										(command == MIDI_BEND )) {
-
-								pthread_mutex_lock(&lock);
-								channel   [numReceived] = (Pm_MessageStatus(event.message) & MIDI_CHN_MASK);
-								note      [numReceived] = Pm_MessageData1(event.message);
-								velocity  [numReceived] = Pm_MessageData2(event.message);
-								timestamp [numReceived] = event.timestamp;
-
-								if (verbose) {
-										mexPrintf("channel = %2d, note = %3d, velocity = %3d, timestamp = %d\n", channel[numReceived], note[numReceived], velocity[numReceived], timestamp[numReceived]);
-										mexEvalString("try, drawnow limitrate nocallbacks; end");
-								}
-
-								if (numReceived==INPUT_BUFFER_SIZE)
-										mexWarnMsgTxt("midi buffer overrun");
-								else
-										numReceived++;
-
-								pthread_mutex_unlock(&lock);
-						}
-				}
-				else
-						mexWarnMsgTxt(Pm_GetErrorText(count));
-		}
+  int count, command;
+  PmEvent event;
+  
+  if (inStream==NULL)
+    return;
+  
+  if (Pm_Poll(inStream)!=TRUE)
+    return;
+  
+  while ((count = Pm_Read(inStream, &event, 1))) {
+    if (count == 1) {
+      
+      /* there seems to be a constant stream of MIDI events, not all of which are interesting */
+      /* the status has the command in the highest 4 bits and the channel in the lowest 4 bits */
+      command = Pm_MessageStatus(event.message) & MIDI_CODE_MASK;
+      if ((command == MIDI_ON_NOTE)         ||
+              (command == MIDI_OFF_NOTE )   ||
+              (command == MIDI_CH_PROGRAM ) ||
+              (command == MIDI_CTRL)        ||
+              (command == MIDI_POLY_TOUCH ) ||
+              (command == MIDI_TOUCH )      ||
+              (command == MIDI_BEND )) {
+        
+        MUTEX_LOCK;
+        channel   [numReceived] = (Pm_MessageStatus(event.message) & MIDI_CHN_MASK);
+        note      [numReceived] = Pm_MessageData1(event.message);
+        velocity  [numReceived] = Pm_MessageData2(event.message);
+        timestamp [numReceived] = event.timestamp;
+        
+        if (verbose) {
+          mexPrintf("channel = %2d, note = %3d, velocity = %3d, timestamp = %d\n", channel[numReceived], note[numReceived], velocity[numReceived], timestamp[numReceived]);
+          mexEvalString("try, drawnow limitrate nocallbacks; end");
+        }
+        
+        if (numReceived==INPUT_BUFFER_SIZE)
+          mexWarnMsgTxt("midi buffer overrun");
+        else
+          numReceived++;
+        
+        MUTEX_UNLOCK;
+      }
+    }
+    else
+      mexWarnMsgTxt(Pm_GetErrorText(count));
+  }
 }
 
 void exitFunction() {
-		if (isInit) {
-				mexPrintf("Terminating PortMidi\n");
-				reportPtError(Pt_Stop());
-				if (inStream != NULL) {
-						reportPmError(Pm_Close(inStream));
-						inStream = NULL;
-				}
-				Pm_Terminate();
-				FREE(channel);
-				FREE(note);
-				FREE(velocity);
-				FREE(timestamp);
-				isInit = 0;
-				deviceOpen = -1;
-				numReceived = 0;
-		}
+  if (isInit) {
+    mexPrintf("Terminating PortMidi\n");
+    reportPtError(Pt_Stop());
+    if (inStream != NULL) {
+      reportPmError(Pm_Close(inStream));
+      inStream = NULL;
+    }
+    Pm_Terminate();
+    MUTEX_LOCK;
+    FREE(channel);
+    FREE(note);
+    FREE(velocity);
+    FREE(timestamp);
+    numReceived = 0;
+    MUTEX_UNLOCK;
+    deviceOpen = -1;
+    isInit = 0;
+  }
 }
 
 void init() {
-		PmError err1;
-		PtError err2;
-
-		if (isInit) return;
-
-		mexPrintf("Initialising PortMidi\n");
-
-		note      = malloc(INPUT_BUFFER_SIZE*sizeof(int32_t));
-		channel   = malloc(INPUT_BUFFER_SIZE*sizeof(int32_t));
-		velocity  = malloc(INPUT_BUFFER_SIZE*sizeof(int32_t));
-		timestamp = malloc(INPUT_BUFFER_SIZE*sizeof(int32_t));
-		if (!(channel && note && velocity && timestamp)) {
-				FREE(channel);
-				FREE(note);
-				FREE(velocity);
-				FREE(timestamp);
-				mexErrMsgTxt("Could not allocate memory");
-		}
-
-		err1 = Pm_Initialize();
-		reportPmError(err1);
-
-		err2 = Pt_Start(1, receive_poll, NULL);
-		reportPtError(err2);
-
-		/* getting here means that PortMidi and PortTime are both fine */
-		mexAtExit(exitFunction);
-		isInit = 1;
+  PmError err1;
+  PtError err2;
+  
+  if (isInit) return;
+  
+  mexPrintf("Initialising PortMidi\n");
+  
+  MUTEX_LOCK;
+  note      = malloc(INPUT_BUFFER_SIZE*sizeof(int32_t));
+  channel   = malloc(INPUT_BUFFER_SIZE*sizeof(int32_t));
+  velocity  = malloc(INPUT_BUFFER_SIZE*sizeof(int32_t));
+  timestamp = malloc(INPUT_BUFFER_SIZE*sizeof(int32_t));
+  if (!(channel && note && velocity && timestamp)) {
+    FREE(channel);
+    FREE(note);
+    FREE(velocity);
+    FREE(timestamp);
+    MUTEX_UNLOCK;
+    mexErrMsgTxt("Could not allocate memory");
+  }
+  else {
+    MUTEX_UNLOCK;
+  }
+  
+  err1 = Pm_Initialize();
+  reportPmError(err1);
+  
+  err2 = Pt_Start(1, receive_poll, NULL);
+  reportPtError(err2);
+  
+  /* getting here means that PortMidi and PortTime are both fine */
+  mexAtExit(exitFunction);
+  isInit = 1;
 }
 
 void reportPtError(PtError err) {
-		switch(err) {
-				case pmNoError:
-						return;
-				case ptHostError:
-						mexErrMsgTxt("PortTime error: Host error");
-				case ptAlreadyStarted:
-						mexErrMsgTxt("PortTime error: Cannot start timer because it is already started");
-				case ptAlreadyStopped:
-						mexErrMsgTxt("PortTime error: Cannot stop timer because it is already stopped");
-				case ptInsufficientMemory:
-						mexErrMsgTxt("PortTime error: Memory could not be allocated");
-		}
+  switch(err) {
+    case pmNoError:
+      return;
+    case ptHostError:
+      mexErrMsgTxt("PortTime error: Host error");
+    case ptAlreadyStarted:
+      mexErrMsgTxt("PortTime error: Cannot start timer because it is already started");
+    case ptAlreadyStopped:
+      mexErrMsgTxt("PortTime error: Cannot stop timer because it is already stopped");
+    case ptInsufficientMemory:
+      mexErrMsgTxt("PortTime error: Memory could not be allocated");
+  }
 }
 
 void reportPmError(PmError err) {
-		switch(err) {
-				case pmNoError:
-						return;
-				case pmGotData:
-						return;
-				case pmHostError:
-						mexErrMsgTxt("PortMidi error: Host error");
-				case pmInvalidDeviceId:
-						mexErrMsgTxt("PortMidi error: Invalid device ID");
-				case pmInsufficientMemory:
-						mexErrMsgTxt("PortMidi error: Insufficient memory");
-				case pmBufferTooSmall:
-						mexErrMsgTxt("PortMidi error: Buffer too small");
-				case pmBufferOverflow:
-						mexErrMsgTxt("PortMidi error: Buffer overflow");
-				case pmBadPtr:
-						mexErrMsgTxt("PortMidi error: Bad pointer");
-				case pmBadData:
-						mexErrMsgTxt("PortMidi error: Bad data");
-				case pmInternalError:
-						mexErrMsgTxt("PortMidi error: Internal error");
-				case pmBufferMaxSize:
-						mexErrMsgTxt("PortMidi error: Buffer is already as large as it can be");
-		}
+  switch(err) {
+    case pmNoError:
+      return;
+    case pmGotData:
+      return;
+    case pmHostError:
+      mexErrMsgTxt("PortMidi error: Host error");
+    case pmInvalidDeviceId:
+      mexErrMsgTxt("PortMidi error: Invalid device ID");
+    case pmInsufficientMemory:
+      mexErrMsgTxt("PortMidi error: Insufficient memory");
+    case pmBufferTooSmall:
+      mexErrMsgTxt("PortMidi error: Buffer too small");
+    case pmBufferOverflow:
+      mexErrMsgTxt("PortMidi error: Buffer overflow");
+    case pmBadPtr:
+      mexErrMsgTxt("PortMidi error: Bad pointer");
+    case pmBadData:
+      mexErrMsgTxt("PortMidi error: Bad data");
+    case pmInternalError:
+      mexErrMsgTxt("PortMidi error: Internal error");
+    case pmBufferMaxSize:
+      mexErrMsgTxt("PortMidi error: Buffer is already as large as it can be");
+  }
 }
 
 mxArray *getDevices() {
-		const char *fieldNames[] = {"index", "name", "input", "output"};
-		int i,numDevs;
-		const PmDeviceInfo* info;
-		mxArray *R;
-
-		numDevs = Pm_CountDevices();
-		R = mxCreateStructMatrix(numDevs, 1, 4, fieldNames);
-
-		for (i=0;i<numDevs;i++) {
-				info = Pm_GetDeviceInfo(i);
-				mxSetFieldByNumber(R, i, 0, mxCreateDoubleScalar(i+1));
-				mxSetFieldByNumber(R, i, 1, mxCreateString(info->name));
-				mxSetFieldByNumber(R, i, 2, mxCreateDoubleScalar(info->input));
-				mxSetFieldByNumber(R, i, 3, mxCreateDoubleScalar(info->output));
-		}
-		return R;
+  const char *fieldNames[] = {"index", "name", "input", "output"};
+  int i,numDevs;
+  const PmDeviceInfo* info;
+  mxArray *R;
+  
+  numDevs = Pm_CountDevices();
+  R = mxCreateStructMatrix(numDevs, 1, 4, fieldNames);
+  
+  for (i=0;i<numDevs;i++) {
+    info = Pm_GetDeviceInfo(i);
+    mxSetFieldByNumber(R, i, 0, mxCreateDoubleScalar(i+1));
+    mxSetFieldByNumber(R, i, 1, mxCreateString(info->name));
+    mxSetFieldByNumber(R, i, 2, mxCreateDoubleScalar(info->input));
+    mxSetFieldByNumber(R, i, 3, mxCreateDoubleScalar(info->output));
+  }
+  return R;
 }
 
 mxArray *getEvent() {
-		unsigned int i,n;
-		double *ptr;
-		mxArray *R;
-		pthread_mutex_lock(&lock);
-		n = numReceived;
-		R = mxCreateDoubleMatrix(n, 4, mxREAL);
-		ptr = (double *)mxGetData(R);
-		for (i=0; i<n; i++) {
-				ptr[i + 0*n] = channel  [i];
-				ptr[i + 1*n] = note     [i];
-				ptr[i + 2*n] = velocity [i];
-				ptr[i + 3*n] = timestamp[i];
-		}
-		/* reset the counter to the beginning of the buffer */
-		numReceived = 0;
-		pthread_mutex_unlock(&lock);
-		return R;
+  unsigned int i,n;
+  double *ptr;
+  mxArray *R;
+  MUTEX_LOCK;
+  n = numReceived;
+  R = mxCreateDoubleMatrix(n, 4, mxREAL);
+  ptr = (double *)mxGetData(R);
+  for (i=0; i<n; i++) {
+    ptr[i + 0*n] = channel  [i];
+    ptr[i + 1*n] = note     [i];
+    ptr[i + 2*n] = velocity [i];
+    ptr[i + 3*n] = timestamp[i];
+  }
+  /* reset the counter to the beginning of the buffer */
+  numReceived = 0;
+  MUTEX_UNLOCK;
+  return R;
 }
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
@@ -267,7 +284,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   PmError err1;
   PtError err2;
   
-  pthread_mutex_lock(&lock);
   init(); /* this returns immediately if already done */
   
   if (nrhs > 0) {
@@ -348,5 +364,4 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     default:
       mexErrMsgTxt("Bad call\n");
   }
-  pthread_mutex_unlock(&lock);
 }

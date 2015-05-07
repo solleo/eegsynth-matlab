@@ -3,24 +3,24 @@ function launchcontrolXL(cfg)
 % LAUNCHCONTROLXL creates a GUI that emulates the Novation LaunchControl XL
 %
 % See http://global.novationmusic.com/launch/launch-control-xl
-%
-% Copyright (C) 2015, Robert Oostenveld
 
+% Copyright (C) 2015, Robert Oostenveld
+%
 % This file is part of EEGSYNTH, see https://github.com/oostenveld/eegsynth-matlab
 % for the documentation and details.
 %
-%    FieldTrip is free software: you can redistribute it and/or modify
+%    EEGSYNTH is free software: you can redistribute it and/or modify
 %    it under the terms of the GNU General Public License as published by
 %    the Free Software Foundation, either version 3 of the License, or
 %    (at your option) any later version.
 %
-%    FieldTrip is distributed in the hope that it will be useful,
+%    EEGSYNTH is distributed in the hope that it will be useful,
 %    but WITHOUT ANY WARRANTY; without even the implied warranty of
 %    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 %    GNU General Public License for more details.
 %
 %    You should have received a copy of the GNU General Public License
-%    along with FieldTrip. If not, see <http://www.gnu.org/licenses/>.
+%    along with EEGSYNTH. If not, see <http://www.gnu.org/licenses/>.
 
 if isempty(which('ft_defaults'))
   error('this function requires that the FieldTrip toolbox is installed, see http://www.fieldtriptoolbox.org');
@@ -90,7 +90,7 @@ cfg.mapping = {
   '0_record',        8, 0
   '0_solo',          8, 0
   '0_mute',          8, 0
-  '0_device',        8, 0
+  '0_device',        8, 105
   '0_trackL',        8, 0
   '0_trackR',        8, 0
   '0_sendU',         8, 0
@@ -201,7 +201,8 @@ uicontrol('tag', '0_factory', 'style', 'pushbutton', 'string', '');
 % all controls have the same callback function
 ft_uilayout(h, 'tag', '^.*$', 'callback', @cb_interface);
 
-ft_uilayout(h, 'style', 'popupmenu', 'value', 64); % set the default to '0'
+ft_uilayout(h, 'style', 'popupmenu', 'value', 64);  % set the default value to the middle
+ft_uilayout(h, 'style', 'slider',    'value', 0.5); % set the default value to the middle
 
 ft_uilayout(h, 'tag', 'control$', 'position', [0 0 060 030]);
 ft_uilayout(h, 'tag', 'focus$',   'position', [0 0 060 030]);
@@ -271,7 +272,7 @@ cfg = guidata(h);
 
 if isempty(tag)
   % this is only needed once
-  tag     = cfg.mapping(:,1);
+  tag     =          cfg.mapping(:,1);
   channel = cell2mat(cfg.mapping(:,2));
   note    = cell2mat(cfg.mapping(:,3));
 end
@@ -293,7 +294,7 @@ for i=1:size(dat,1)
         end
       case 'popupmenu'
         set(u, 'value', dat(i,3));
-    end
+    end % switch
   end
 end
 

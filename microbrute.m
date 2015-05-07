@@ -1,10 +1,8 @@
-function digitalpiano(cfg)
+function microbrute(cfg)
 
-% DIGITALPIANO create a GUI with a digital piano that plays the notes using MIDI or
-% using the soundcard.
+% MICROBRUTE creates a GUI that emulates the Arturia MicroBrute synthesizer
 %
-% This interface has been designed for and tested with the Yamaha P95
-% digital piano, but should also work with any other 88-key MIDI controller.
+% See http://www.arturia.com/products/hardware-synths/microbrute
 
 % Copyright (C) 2015, Robert Oostenveld
 %
@@ -43,23 +41,58 @@ cfg.output    = ft_getopt(cfg, 'output', 'yes');
 cfg.playsound = ft_getopt(cfg, 'playsound', 'no');
 
 % this table contains the UI tag, channel and note
-cfg.mapping = cell(120,3);
-
-for i=1:11
-  % see http://en.wikipedia.org/wiki/Scientific_pitch_notation
-  cfg.mapping((i-1)*12+1,  :) = {sprintf('%d_C' , i-1), 0, i*12+0};
-  cfg.mapping((i-1)*12+2,  :) = {sprintf('%d_Db', i-1), 0, i*12+1};
-  cfg.mapping((i-1)*12+3,  :) = {sprintf('%d_D' , i-1), 0, i*12+2};
-  cfg.mapping((i-1)*12+4,  :) = {sprintf('%d_Eb', i-1), 0, i*12+3};
-  cfg.mapping((i-1)*12+5,  :) = {sprintf('%d_E' , i-1), 0, i*12+4};
-  cfg.mapping((i-1)*12+6,  :) = {sprintf('%d_F' , i-1), 0, i*12+5};
-  cfg.mapping((i-1)*12+7,  :) = {sprintf('%d_Gb', i-1), 0, i*12+6};
-  cfg.mapping((i-1)*12+8,  :) = {sprintf('%d_G' , i-1), 0, i*12+7};
-  cfg.mapping((i-1)*12+9,  :) = {sprintf('%d_Ab', i-1), 0, i*12+8};
-  cfg.mapping((i-1)*12+10, :) = {sprintf('%d_A' , i-1), 0, i*12+9};
-  cfg.mapping((i-1)*12+11, :) = {sprintf('%d_Bb', i-1), 0, i*12+10};
-  cfg.mapping((i-1)*12+12, :) = {sprintf('%d_B' , i-1), 0, i*12+11};
-end
+cfg.mapping = {
+  '3_C',                   0,  48
+  '3_Db',                  0,  49
+  '3_D',                   0,  50
+  '3_Eb',                  0,  51
+  '3_E',                   0,  52
+  '3_F',                   0,  53
+  '3_Gb',                  0,  54
+  '3_G',                   0,  55
+  '3_Ab',                  0,  56
+  '3_A',                   0,  57
+  '3_Bb',                  0,  58
+  '3_B',                   0,  59
+  '4_C',                   0,  60
+  '4_Db',                  0,  61
+  '4_D',                   0,  62
+  '4_Eb',                  0,  63
+  '4_E',                   0,  64
+  '4_F',                   0,  65
+  '4_Gb',                  0,  66
+  '4_G',                   0,  67
+  '4_Ab',                  0,  68
+  '4_A',                   0,  69
+  '4_Bb',                  0,  70
+  '4_B',                   0,  71
+  '5_C',                   0,  72
+  '1_1_oscillator',        8,  13 % not correct, testing only
+  '1_2_oscillator',        0,   0
+  '1_3_oscillator',        0,   0
+  '1_4_oscillator',        0,   0
+  '2_1_oscillator',        8,  29 % not correct, testing only
+  '2_2_oscillator',        0,   0
+  '2_3_oscillator',        0,   0
+  '2_4_oscillator',        0,   0
+  '1_5_filter',            0,   0
+  '1_6_filter',            0,   0
+  '1_7_filter',            0,   0
+  '2_6_filter',            0,   0
+  '2_7_filter',            0,   0
+  '3_1_glide',             0,   0
+  '3_2_lfo_amount',        0,   0
+  '3_3_lfo_rate',          0,   0
+  '3_4_envelope_amount',   0,   0
+  '3_8_sequencer_pattern', 0,   0
+  '3_9_sequencer_rate',    0,   0
+  '1_slide',               0,   0
+  '2_slide',               0,   0
+  '3_slide',               8,   77 % not correct, testing only
+  '4_slide',               8,   78 % not correct, testing only
+  '5_slide',               8,   79 % not correct, testing only
+  '6_slide',               8,   80 % not correct, testing only
+  };
 
 close all
 
@@ -88,42 +121,12 @@ function creategui(h)
 
 figure(h);
 pos = get(h, 'Position');
-pos(1) = pos(1)+pos(3)/2-1080/2;
-pos(3) = 1080;
-pos(4) = 140;
+pos(1) = pos(1)+pos(3)/2-680/2;
+pos(3) = 680;
+pos(4) = 280;
 set(h, 'Position', pos);
 set(h, 'MenuBar', 'none')
-set(h, 'Name', 'Piano')
-
-uicontrol('tag', '0_A',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '0_B',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '0_Bb', 'style', 'pushbutton', 'string', '');
-
-uicontrol('tag', '1_C',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '1_D',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '1_E',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '1_F',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '1_G',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '1_A',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '1_B',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '1_Db', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '1_Eb', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '1_Gb', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '1_Ab', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '1_Bb', 'style', 'pushbutton', 'string', '');
-
-uicontrol('tag', '2_C',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '2_D',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '2_E',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '2_F',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '2_G',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '2_A',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '2_B',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '2_Db', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '2_Eb', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '2_Gb', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '2_Ab', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '2_Bb', 'style', 'pushbutton', 'string', '');
+set(h, 'Name', 'MicroBrute')
 
 uicontrol('tag', '3_C',  'style', 'pushbutton', 'string', '');
 uicontrol('tag', '3_D',  'style', 'pushbutton', 'string', '');
@@ -137,7 +140,6 @@ uicontrol('tag', '3_Eb', 'style', 'pushbutton', 'string', '');
 uicontrol('tag', '3_Gb', 'style', 'pushbutton', 'string', '');
 uicontrol('tag', '3_Ab', 'style', 'pushbutton', 'string', '');
 uicontrol('tag', '3_Bb', 'style', 'pushbutton', 'string', '');
-
 uicontrol('tag', '4_C',  'style', 'pushbutton', 'string', '');
 uicontrol('tag', '4_D',  'style', 'pushbutton', 'string', '');
 uicontrol('tag', '4_E',  'style', 'pushbutton', 'string', '');
@@ -150,53 +152,43 @@ uicontrol('tag', '4_Eb', 'style', 'pushbutton', 'string', '');
 uicontrol('tag', '4_Gb', 'style', 'pushbutton', 'string', '');
 uicontrol('tag', '4_Ab', 'style', 'pushbutton', 'string', '');
 uicontrol('tag', '4_Bb', 'style', 'pushbutton', 'string', '');
-
 uicontrol('tag', '5_C',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '5_D',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '5_E',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '5_F',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '5_G',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '5_A',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '5_B',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '5_Db', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '5_Eb', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '5_Gb', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '5_Ab', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '5_Bb', 'style', 'pushbutton', 'string', '');
 
-uicontrol('tag', '6_C',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '6_D',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '6_E',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '6_F',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '6_G',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '6_A',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '6_B',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '6_Db', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '6_Eb', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '6_Gb', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '6_Ab', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '6_Bb', 'style', 'pushbutton', 'string', '');
-
-uicontrol('tag', '7_C',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '7_D',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '7_E',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '7_F',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '7_G',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '7_A',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '7_B',  'style', 'pushbutton', 'string', '');
-uicontrol('tag', '7_Db', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '7_Eb', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '7_Gb', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '7_Ab', 'style', 'pushbutton', 'string', '');
-uicontrol('tag', '7_Bb', 'style', 'pushbutton', 'string', '');
-
-uicontrol('tag', '8_C',  'style', 'pushbutton', 'string', '');
+uicontrol('tag', '1_1_oscillator',        'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '1_2_oscillator',        'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '1_3_oscillator',        'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '1_4_oscillator',        'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '2_1_oscillator',        'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '2_2_oscillator',        'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '2_3_oscillator',        'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '2_4_oscillator',        'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '1_5_filter',            'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '1_6_filter',            'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '1_7_filter',            'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '2_6_filter',            'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '2_7_filter',            'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '3_1_glide',             'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '3_2_lfo_amount',        'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '3_3_lfo_rate',          'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '3_4_envelope_amount',   'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '3_8_sequencer_pattern', 'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '3_9_sequencer_rate',    'style', 'popupmenu',  'string', num2cell(1:127));
+uicontrol('tag', '1_slide',               'style', 'slider',     'string', '');
+uicontrol('tag', '2_slide',               'style', 'slider',     'string', '');
+uicontrol('tag', '3_slide',               'style', 'slider',     'string', '');
+uicontrol('tag', '4_slide',               'style', 'slider',     'string', '');
+uicontrol('tag', '5_slide',               'style', 'slider',     'string', '');
+uicontrol('tag', '6_slide',               'style', 'slider',     'string', '');
 
 % all controls have the same callback function
 ft_uilayout(h, 'tag', '^.*$', 'callback', @cb_interface);
 
-ft_uilayout(h, 'tag', '._[CDEFGAB]$', 'position', [0 0 020 100]);
-ft_uilayout(h, 'tag', '._.b$',        'position', [0 0 014 070]);
+ft_uilayout(h, 'style', 'popupmenu', 'value', 64);  % set the default value to the middle
+ft_uilayout(h, 'style', 'slider',    'value', 0.5); % set the default value to the middle
+
+% specify the size of the keys on the keyboard
+ft_uilayout(h, 'tag', '._[CDEFGAB]$', 'position', [0 0 020 100]); % white
+ft_uilayout(h, 'tag', '._.b$',        'position', [0 0 014 070]); % black
 
 ft_uilayout(h, 'tag', '[CDEFGAB]$', 'BackgroundColor', 'w'); % white
 ft_uilayout(h, 'tag', 'b$',         'BackgroundColor', 'k'); % black
@@ -218,15 +210,37 @@ ft_uilayout(h, 'tag', 'Gb$', 'hpos', 093);
 ft_uilayout(h, 'tag', 'Ab$', 'hpos', 113);
 ft_uilayout(h, 'tag', 'Bb$', 'hpos', 133);
 
-ft_uilayout(h, 'tag', '^0', 'hshift', 40-1*140);
-ft_uilayout(h, 'tag', '^1', 'hshift', 40+0*140);
-ft_uilayout(h, 'tag', '^2', 'hshift', 40+1*140);
-ft_uilayout(h, 'tag', '^3', 'hshift', 40+2*140);
-ft_uilayout(h, 'tag', '^4', 'hshift', 40+3*140);
-ft_uilayout(h, 'tag', '^5', 'hshift', 40+4*140);
-ft_uilayout(h, 'tag', '^6', 'hshift', 40+5*140);
-ft_uilayout(h, 'tag', '^7', 'hshift', 40+6*140);
-ft_uilayout(h, 'tag', '^8', 'hshift', 40+7*140);
+ft_uilayout(h, 'tag', '^3', 'hshift', 0*140+080);
+ft_uilayout(h, 'tag', '^4', 'hshift', 1*140+080);
+ft_uilayout(h, 'tag', '^5', 'hshift', 2*140+080);
+
+% specify the size of the knobs and sliders
+ft_uilayout(h, 'tag', '^[123]_[1-9]',   'position', [0 0 070 030]);
+ft_uilayout(h, 'tag', '._slide',        'position', [0 0 020 120]);
+
+% position the sliders
+ft_uilayout(h, 'tag', '._slide', 'vpos', 070);
+ft_uilayout(h, 'tag', '1_slide', 'hpos', 020, 'vpos', 130);
+ft_uilayout(h, 'tag', '2_slide', 'hpos', 040, 'vpos', 130);
+ft_uilayout(h, 'tag', '3_slide', 'hpos', 430);
+ft_uilayout(h, 'tag', '4_slide', 'hpos', 450);
+ft_uilayout(h, 'tag', '5_slide', 'hpos', 470);
+ft_uilayout(h, 'tag', '6_slide', 'hpos', 490);
+
+% position the knobs
+ft_uilayout(h, 'tag', '^1_._', 'vpos', 220);
+ft_uilayout(h, 'tag', '^2_._', 'vpos', 190);
+ft_uilayout(h, 'tag', '^3_._', 'vpos', 160);
+ft_uilayout(h, 'tag', '^._1_', 'hpos', 060+020);
+ft_uilayout(h, 'tag', '^._2_', 'hpos', 060+085);
+ft_uilayout(h, 'tag', '^._3_', 'hpos', 060+150);
+ft_uilayout(h, 'tag', '^._4_', 'hpos', 060+215);
+ft_uilayout(h, 'tag', '^._5_', 'hpos', 060+280);
+ft_uilayout(h, 'tag', '^._6_', 'hpos', 060+345);
+ft_uilayout(h, 'tag', '^._7_', 'hpos', 060+410);
+ft_uilayout(h, 'tag', '^._8_', 'hpos', 060+475);
+ft_uilayout(h, 'tag', '^._9_', 'hpos', 060+540);
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % SUBFUNCTION
@@ -239,6 +253,10 @@ disp(tag);
 % parse the tag (e.g. 4_C) into the octave and note
 octave = str2double(tag(1));
 note   = tag(3:end);
+
+if ~ismember(note, {'C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'});
+  return
+end
 
 if strcmp(cfg.playsound, 'yes')
   % the first column is octave 0 according to http://en.wikipedia.org/wiki/Scientific_pitch_notation
@@ -258,7 +276,7 @@ if strcmp(cfg.playsound, 'yes')
   fs = 22000;
   t = (1:0.5*fs)/fs;
   f = frequency.(note);
-  f = f(octave-1);
+  f = f(octave);
   s = sin(2*pi*f*t) .* tukeywin(length(t), 0.1)';
   p = audioplayer(s, fs);
   playblocking(p);
@@ -315,6 +333,8 @@ for i=1:size(dat,1)
     u = findobj(h, 'tag', tag{sel});
     if numel(u)==1
       switch lower(get(u, 'style'))
+        case 'slider'
+          set(u, 'value', dat(i,3)/127);
         case 'pushbutton'
           if dat(i,3)>0
             % pushed down
@@ -328,7 +348,9 @@ for i=1:size(dat,1)
               set(u, 'backgroundcolor', [1 1 1]);
             end
           end
-      end % switch
+        case 'popupmenu'
+          set(u, 'value', dat(i,3));
+      end % case
     else
       disp(dat);
     end
